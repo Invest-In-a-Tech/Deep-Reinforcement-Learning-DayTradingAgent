@@ -1,6 +1,6 @@
 # Project Overview
 
-This project is a Python-based application that uses machine learning to perform live trading and model training on ES emini futures data through Sierra Charts _(New to Sierra Charts and how to connect it to Python? Check out my articles here https://medium.com/@investinatech)_. Sierra Charts is an extremely powerful trading software that offers pinpoint data. The project is divided into several modules, each with a specific role in the overall functionality of the application.
+This project is a Python-based application that uses deep reinforcement learning to perform live trading and model training on ES emini futures data through Sierra Charts _(New to Sierra Charts and how to connect it to Python? Check out my articles here https://medium.com/@investinatech)_. Sierra Charts is an extremely powerful trading software that offers pinpoint data. The project is divided into several modules, each with a specific role in the overall functionality of the application.
 
 ## Project Structure
 
