@@ -50,4 +50,4 @@ The [`.gitignore`](command:_github.copilot.openRelativePath?%5B%22.gitignore%22%
 
 ## Conclusion
 
-This project is a comprehensive application that uses machine learning for live trading. It demonstrates the use of various Python libraries and techniques, including data preprocessing, feature engineering, machine learning, and live trading.
+This project is a comprehensive application that uses deep reinforcement learning for live trading. It demonstrates the use of various Python libraries and techniques, including data preprocessing, feature engineering, deep reinforcement learning, and live trading.
