@@ -1,0 +1,11 @@
+#flask
+stable-baselines3
+shimmy>=0.2.1
+scikit-learn 
+python-dateutil
+python-dotenv
+gym
+#requests
+#gunicorn
+trade29_scpy-0.0.14.tar.gz
+tensorboard
