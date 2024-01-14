@@ -12,7 +12,7 @@ import os
 
 
 def run_training():
-    processor = DataFrameProcessor(os.path.join('model_training', 'data', 'ES.OHLC_VBP2_lessdata.csv'))
+    processor = DataFrameProcessor(os.path.join('model_training', 'data', 'example_esDataset.csv'))
     df = processor.process_data()
 
     feature_engineer = FeatureEngineering(df)
@@ -75,7 +75,7 @@ def run_training():
             eval_actions.append(action)
             total_rewards += reward
 
-            #env.render(step_num=i, action=action, reward=reward, total_rewards=total_rewards)
+            env.render(step_num=i, action=action, reward=reward)
             #env.log_data(step_num=i, action=action, reward=reward, total_rewards=total_rewards)
 
             if done:
