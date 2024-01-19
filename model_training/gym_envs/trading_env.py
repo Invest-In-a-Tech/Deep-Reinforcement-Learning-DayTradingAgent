@@ -13,13 +13,14 @@ class TradingEnv(gym.Env):
         stop_loss=1000, 
         profit_target=1000, 
         start_time="08:30:00", 
-        end_time="14:30:00"
+        end_time="14:30:00",
     ):
         
         super(TradingEnv, self).__init__()
         
         # Data
         self.features = features.values
+        #print(f'Features: {self.features}')
         self.feature_columns = features.columns
         self.dates = features.index
         
@@ -49,6 +50,7 @@ class TradingEnv(gym.Env):
 
         # Sort DataFrame by index (Date) and extract unique timestamps
         self.features = features.sort_index()
+        #print(f'Features: {self.features}')
         self.unique_timestamps = self.features.index.unique()
 
         # Define action and observation spaces
@@ -59,9 +61,61 @@ class TradingEnv(gym.Env):
         additional_info_shape = 6  # balance, position flags, stop loss flag, open PnL, drawdown
         total_observation_shape = market_data_shape + additional_info_shape
         self.observation_space = spaces.Box(low=-float('inf'), high=float('inf'), shape=(total_observation_shape,), dtype=np.float32)
+        
 
         # Reset environment to start state
         self.reset()
+
+
+    def reset(self):
+        self.current_timestamp_index = 0
+        self.current_timestamp = self.unique_timestamps[self.current_timestamp_index]
+        self.current_row = 0
+        self.balance = self.initial_balance  # Reset balance
+        self.position = None
+        self.entry_price = None
+        self.high_water_mark = self.initial_balance
+        self.entry_step = None
+        self.stop_loss_flag = 0  # Reset stop loss flag
+        return self._next_observation()
+    
+    
+    def _next_observation(self):
+        # Extract market data
+        filtered_df = self.features.loc[[self.current_timestamp]]
+        row = filtered_df.iloc[self.current_row]
+        market_data = row.values
+
+
+        # Current market price needs to be defined here (ensure this is aligned with your data)
+        self.current_market_price = row['Price']  # Adjust this line based on your DataFrame's structure
+        #print(f'Current Market Price: {self.current_market_price}')
+
+        # Calculate Open PnL
+        if self.position == 'long':
+            self.open_pnl = (self.current_market_price - self.entry_price) * self.tick_value
+        elif self.position == 'short':
+            self.open_pnl = (self.entry_price - self.current_market_price) * self.tick_value
+        else:
+            self.open_pnl = 0
+
+        # Calculate drawdown from open_pnl
+        if self.position is not None:
+            self.drawdown = min(self.open_pnl, 0)
+        else:
+            self.drawdown = 0
+
+        # Update stop loss flag
+        if self.balance <= (self.high_water_mark - self.stop_loss):
+            self.stop_loss_flag = 1
+        else:
+            self.stop_loss_flag = 0
+
+        # Combine market data with account information
+        position_flags = np.array([int(self.position == 'long'), int(self.position == 'short')])
+        additional_info = np.array([self.balance, *position_flags, self.stop_loss_flag, self.open_pnl, self.drawdown])
+        observation = np.concatenate((market_data, additional_info))
+        return observation    
 
 
     def step(self, action):
@@ -87,7 +141,7 @@ class TradingEnv(gym.Env):
                 self.entry_balance = None
                 self.drawdown = 0
                 #self.open_pnl = 0
-                print("End of Day Exiting all positions")
+                #print("End of Day Exiting all positions")
                 
         # Check if the current time is within the trading hours
         if self.start_time <= current_time <= self.end_time:                
@@ -130,9 +184,12 @@ class TradingEnv(gym.Env):
 
         # Risk management penalty
         # Example risk penalty (can be customized)
+        
         risk_penalty = 0
+        
         if self.position is not None and (self.current_market_price - self.entry_price) * self.tick_value < -500:
             risk_penalty = 100
+        
         reward -= risk_penalty
 
         
@@ -159,60 +216,10 @@ class TradingEnv(gym.Env):
         return observation, reward, done, info
 
 
-    def reset(self):
-        self.current_timestamp_index = 0
-        self.current_timestamp = self.unique_timestamps[self.current_timestamp_index]
-        self.current_row = 0
-        self.balance = self.initial_balance  # Reset balance
-        self.position = None
-        self.entry_price = None
-        self.high_water_mark = self.initial_balance
-        self.entry_step = None
-        self.stop_loss_flag = 0  # Reset stop loss flag
-        return self._next_observation()
-
-
-    def _next_observation(self):
-        # Extract market data
-        filtered_df = self.features.loc[[self.current_timestamp]]
-        row = filtered_df.iloc[self.current_row]
-        market_data = row.values
-
-        # Current market price needs to be defined here (ensure this is aligned with your data)
-        self.current_market_price = row['Price']  # Adjust this line based on your DataFrame's structure
-
-        # Calculate Open PnL
-        if self.position == 'long':
-            self.open_pnl = (self.current_market_price - self.entry_price) * self.tick_value
-        elif self.position == 'short':
-            self.open_pnl = (self.entry_price - self.current_market_price) * self.tick_value
-        else:
-            self.open_pnl = 0
-
-        # Calculate drawdown from open_pnl
-        if self.position is not None:
-            self.drawdown = min(self.open_pnl, 0)
-        else:
-            self.drawdown = 0
-
-        # Update stop loss flag
-        if self.balance <= (self.high_water_mark - self.stop_loss):
-            self.stop_loss_flag = 1
-        else:
-            self.stop_loss_flag = 0
-
-        # Combine market data with account information
-        position_flags = np.array([int(self.position == 'long'), int(self.position == 'short')])
-        additional_info = np.array([self.balance, *position_flags, self.stop_loss_flag, self.open_pnl, self.drawdown])
-        observation = np.concatenate((market_data, additional_info))
-        return observation
-
-
-    def render(self, mode='human', action=None, reward=None, step_num=None):
+    def render(self, mode='human', action=None, reward=None):
         if mode == 'human':
             # Human-readable printout of the current state in a single line
             state_info = (
-                f"Step: {step_num},"
                 f"Timestamp: {self.current_timestamp}, "
                 f"Current Row: {self.current_row}, "
                 f"Current Position: {self.position}, "
@@ -227,3 +234,4 @@ class TradingEnv(gym.Env):
             print(state_info)
         else:
             raise NotImplementedError("Only 'human' mode is supported for rendering.")
+        

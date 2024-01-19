@@ -1,6 +1,8 @@
 # main.py 
 
-from model_training.agents.training import run_training
+
+from model_training.agents.ppo_train_test_split import run_training
+#from model_training.agents.test_code import run_training
 
 def main():
     

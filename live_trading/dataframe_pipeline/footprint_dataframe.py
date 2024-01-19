@@ -9,48 +9,57 @@ class FootprintDataframe:
 
 
     def process_footprint_dataframe(self):
+        """
+        Enhancements for Performance:
+        
+        - Used vectorized group operations with pandas groupby and apply methods. 
+          This avoids looping over groups manually and leverages pandas' optimized 
+          internal computations for group operations.
+        
+        - Custom function 'calculate_levels' is applied to each group to perform 
+          necessary calculations in a vectorized way, increasing efficiency.
+        
+        - Efficient merging with the original DataFrame and in-place handling of 
+          missing values further enhances performance.
+        """       
         # Ensure DataFrame has necessary columns
         required_columns = {'TotalVolume', 'Price'}
         if not required_columns.issubset(self.df.columns):
             raise ValueError(f"DataFrame must contain columns: {required_columns}")
 
-        # Group data by Date if the index is meaningful (e.g., dates)
+        # Group data by Date
         if not self.df.index.is_unique:
             grouped = self.df.groupby(self.df.index)
         else:
-            # If index is unique for each row, the grouping is not necessary
+            # If each row has a unique index, grouping is not necessary
             grouped = [(self.df.index[i], self.df.iloc[[i]]) for i in range(len(self.df))]
 
-        combined_data = []
 
-        for date, group in grouped:
-            # Simplify calculations
-            sorted_volumes = group['TotalVolume'].sort_values()
-            max_volume = sorted_volumes.iloc[-1]
-            poc_price_level = group[group['TotalVolume'] == max_volume]['Price'].iloc[0]
+        def calculate_levels(group):
+            sorted_volumes = group.sort_values('TotalVolume')
+            poc = sorted_volumes.iloc[-1]
+            hvn = sorted_volumes.iloc[-2] if len(sorted_volumes) > 1 else poc
+            lvn = sorted_volumes.iloc[0]
 
-            hvn_volume = sorted_volumes.iloc[-2] if len(sorted_volumes) > 1 else max_volume
-            hvn_price_level = group[group['TotalVolume'] == hvn_volume]['Price'].iloc[0]
+            return pd.Series({
+                'POC_Price': poc['Price'],
+                'POC_Volume': poc['TotalVolume'],
+                'HVN_Price': hvn['Price'],
+                'HVN_Volume': hvn['TotalVolume'],
+                'LVN_Price': lvn['Price'],
+                'LVN_Volume': lvn['TotalVolume']
+            })
 
-            lvn_volume = sorted_volumes.iloc[0]
-            lvn_price_level = group[group['TotalVolume'] == lvn_volume]['Price'].iloc[0]
-
-            combined_data.append((date, poc_price_level, max_volume, hvn_price_level, hvn_volume, lvn_price_level, lvn_volume))
-
-        combined_df = pd.DataFrame(combined_data, columns=['Date', 'POC_Price', 'POC_Volume', 'HVN_Price', 'HVN_Volume', 'LVN_Price', 'LVN_Volume'])
-        combined_df.set_index('Date', inplace=True)
+        combined_df = grouped.apply(calculate_levels)
 
         # Merge with Original DataFrame
         self.df = self.df.merge(combined_df, left_index=True, right_index=True, how='left')
 
-        # Handle Missing Values
-        self.df.ffill()
 
-        # Select and print the specified columns
-        columns_to_print = ['Open', 'High', 'Low', 'Close', 'Volume', 'Delta', 'CVD', 'Price', 'Bid', 'Ask', 'TotalVolume', 
-                            'POC_Price', 'HVN_Price', 'LVN_Price', 'POC_Volume', 'HVN_Volume', 'LVN_Volume']
-        
-        print(self.df.tail(10))
+        # Handle Missing Values
+        self.df.ffill(inplace=True)
+
+        print(self.df.tail(50))
         print(f"After processing footprint dataframe, DataFrame shape: {self.df.shape}")
         return self.df.dropna()
     

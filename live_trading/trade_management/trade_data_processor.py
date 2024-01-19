@@ -1,7 +1,5 @@
-import joblib
-import numpy as np
 from datetime import datetime
-from stable_baselines3 import PPO
+
 from trade29.sc.bridge import SCBridge
 
 from live_trading.trade_management.model_handling import ModelHandler
@@ -13,7 +11,6 @@ from live_trading.events.position_event import PositionEvent
 
 from live_trading.dataframe_pipeline.data_event import DataEvent
 from live_trading.dataframe_pipeline.footprint_dataframe import FootprintDataframe
-from live_trading.dataframe_pipeline.main_dataframe import MainDataframe
 
 import os
 from dotenv import find_dotenv, load_dotenv
@@ -81,7 +78,7 @@ class TradeDataProcessor:
             # Check if the request ID is for data
             elif self.msg.request_id == self.data_event.data_reqid:
                 df_enhanced = self.prepare_data(self.msg) 
-                print(df_enhanced)    
+                #print(df_enhanced)    
                 
                 # Call the manage_account method and get the updated account info
                 self.account_info = self.manage_account()            
