@@ -14,7 +14,7 @@ import os
 
 
 def run_training():
-    processor = DataFrameProcessor(os.path.join('model_training', 'data', 'es_tuples_esDataset.csv'))
+    processor = DataFrameProcessor(os.path.join('model_training', 'data', 'example_esDataset.csv'))
     df = processor.process_data()
 
     feature_engineer = FeatureEngineering(df)
@@ -56,7 +56,7 @@ def run_training():
         env_train = TradingEnv(features_train_scaled, start_time="08:30:00", end_time="14:30:00")
         #env_train = TradingEnv(features_train, start_time="08:30:00", end_time="14:30:00")
         model = PPO("MlpPolicy", env_train, verbose=1, tensorboard_log=log_path)
-        model.learn(total_timesteps=20000)
+        model.learn(total_timesteps=500)
 
         
         # Evaluate your model on the test set
