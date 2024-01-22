@@ -14,7 +14,7 @@ import os
 
 
 def run_training():
-    processor = DataFrameProcessor(os.path.join('model_training', 'data', 'example_esDataset.csv'))
+    processor = DataFrameProcessor(os.path.join('model_training', 'data', 'es_tuples_esDataset.csv'))
     df = processor.process_data()
 
     feature_engineer = FeatureEngineering(df)

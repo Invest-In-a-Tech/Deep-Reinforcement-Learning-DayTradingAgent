@@ -81,41 +81,54 @@ class TradingEnv(gym.Env):
     
     
     def _next_observation(self):
-        # Extract market data
+        # Extract market data for the current timestamp
         filtered_df = self.features.loc[[self.current_timestamp]]
-        row = filtered_df.iloc[self.current_row]
-        market_data = row.values
 
+        # Check if current_row is within the bounds of filtered_df
+        if self.current_row < len(filtered_df):
+            row = filtered_df.iloc[self.current_row]
+            market_data = row.values
 
-        # Current market price needs to be defined here (ensure this is aligned with your data)
-        self.current_market_price = row['Price']  # Adjust this line based on your DataFrame's structure
-        #print(f'Current Market Price: {self.current_market_price}')
+            
+            self.current_market_price = row['Price']
 
-        # Calculate Open PnL
-        if self.position == 'long':
-            self.open_pnl = (self.current_market_price - self.entry_price) * self.tick_value
-        elif self.position == 'short':
-            self.open_pnl = (self.entry_price - self.current_market_price) * self.tick_value
+            # Calculate Open PnL
+            if self.position == 'long':
+                self.open_pnl = (self.current_market_price - self.entry_price) * self.tick_value
+            elif self.position == 'short':
+                self.open_pnl = (self.entry_price - self.current_market_price) * self.tick_value
+            else:
+                self.open_pnl = 0
+
+            # Calculate drawdown from open_pnl
+            if self.position is not None:
+                self.drawdown = min(self.open_pnl, 0)
+            else:
+                self.drawdown = 0
+
+            # Update stop loss flag
+            if self.balance <= (self.high_water_mark - self.stop_loss):
+                self.stop_loss_flag = 1
+            else:
+                self.stop_loss_flag = 0
+
+            # Combine market data with account information
+            position_flags = np.array([int(self.position == 'long'), int(self.position == 'short')])
+            additional_info = np.array([self.balance, *position_flags, self.stop_loss_flag, self.open_pnl, self.drawdown])
+            observation = np.concatenate((market_data, additional_info))
+            return observation
         else:
-            self.open_pnl = 0
-
-        # Calculate drawdown from open_pnl
-        if self.position is not None:
-            self.drawdown = min(self.open_pnl, 0)
-        else:
-            self.drawdown = 0
-
-        # Update stop loss flag
-        if self.balance <= (self.high_water_mark - self.stop_loss):
-            self.stop_loss_flag = 1
-        else:
-            self.stop_loss_flag = 0
-
-        # Combine market data with account information
-        position_flags = np.array([int(self.position == 'long'), int(self.position == 'short')])
-        additional_info = np.array([self.balance, *position_flags, self.stop_loss_flag, self.open_pnl, self.drawdown])
-        observation = np.concatenate((market_data, additional_info))
-        return observation    
+            # Handle the case when current_row exceeds the length of filtered_df
+            # Move to the next timestamp or handle the end of dataset
+            self.current_timestamp_index += 1
+            if self.current_timestamp_index >= len(self.unique_timestamps):
+                # Handle the end of the dataset (e.g., by resetting the environment)
+                return self.reset()
+            else:
+                # Move to the next timestamp and reset current_row
+                self.current_timestamp = self.unique_timestamps[self.current_timestamp_index]
+                self.current_row = 0
+                return self._next_observation()  
 
 
     def step(self, action):
