@@ -62,6 +62,16 @@ class TradingEnv(gym.Env):
         total_observation_shape = market_data_shape + additional_info_shape
         self.observation_space = spaces.Box(low=-float('inf'), high=float('inf'), shape=(total_observation_shape,), dtype=np.float32)
         
+        
+        # Define penalty and threshold values
+        self.overtrading_penalty = 50  # Penalty for exceeding trade threshold
+        self.trade_threshold = 10  # Maximum number of trades allowed in a timeframe
+        self.duration_threshold = 30  # Maximum duration to hold a position
+        self.time_in_market_penalty = 20  # Penalty for holding a position too long
+        self.profit_threshold = 100  # Minimum profit to avoid time in market penalty
+        self.loss_penalty_factor = 1.0  # Penalty factor for losing trades
+        self.profit_reward_factor = 10.0  # Reward factor for profitable trades
+        
 
         # Reset environment to start state
         self.reset()
@@ -77,6 +87,8 @@ class TradingEnv(gym.Env):
         self.high_water_mark = self.initial_balance
         self.entry_step = None
         self.stop_loss_flag = 0  # Reset stop loss flag
+        self.trade_count = 0  # Reset trade counter at each episode
+        self.position_duration = 0  # Reset position duration       
         return self._next_observation()
     
     
@@ -135,6 +147,7 @@ class TradingEnv(gym.Env):
         reward = 0
         done = False
         info = {}
+        pnl = 0
         
         # Define transaction cost
         transaction_cost = 10  # Example fixed cost per trade        
@@ -197,6 +210,29 @@ class TradingEnv(gym.Env):
 
         # Risk management penalty
         # Example risk penalty (can be customized)
+        
+        # Increment trade count on position entry/exit
+        if action in [0, 1, 2, 3]:  # trade actions
+            self.trade_count += 1
+
+        # Apply trade count penalty
+        trade_threshold = 10  # Example threshold
+        if self.trade_count > trade_threshold:
+            reward -= self.overtrading_penalty  # Define overtrading_penalty
+
+        # Calculate PnL-based rewards/penalties
+        if action in [1, 3]:  # Assuming these are position exit actions
+            if pnl > 0:  # Profit
+                reward += self.profit_reward_factor * pnl  # Define profit_reward_factor
+            else:  # Loss
+                reward -= self.loss_penalty_factor * abs(pnl)  # Define loss_penalty_factor
+
+        # Time in market penalty
+        if self.position is not None:
+            self.position_duration += 1  # Increment duration each step
+            if self.position_duration > self.duration_threshold and pnl < self.profit_threshold:  # Define these thresholds
+                reward -= self.time_in_market_penalty  # Define time_in_market_penalty
+        
         
         risk_penalty = 0
         
