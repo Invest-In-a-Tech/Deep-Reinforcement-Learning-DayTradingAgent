@@ -178,6 +178,7 @@ class TradingEnv(gym.Env):
         reward = 0
         done = False
         info = {}
+        trade_reward = 0
         
         # Define transaction cost
         transaction_cost = 10  # Example fixed cost per trade        
@@ -196,6 +197,7 @@ class TradingEnv(gym.Env):
                 self.entry_price = None
                 self.entry_balance = None
                 self.drawdown = 0
+                trade_reward = self.open_pnl
                 #self.open_pnl = 0
                 #print("End of Day Exiting all positions")
                 
@@ -208,45 +210,48 @@ class TradingEnv(gym.Env):
                     if action == 0:
                         self.position = 'long'
                         self.entry_price = self.current_market_price
-                        #reward -= transaction_cost  # Applying transaction cost
+                        self.open_pnl = 0
 
                     # Short Entry
                     elif action == 2:
                         self.position = 'short'
                         self.entry_price = self.current_market_price
-                        #reward -= transaction_cost  # Applying transaction cost
+                        self.open_pnl = 0
 
                     # Do Nothing
                     elif action == 4:
-                        pass
-
+                        # Check if the market is flat
+                        if abs(self.current_market_price - self.current_market_price - 1) <= 2:  # Assuming a small threshold for flat market
+                            reward += 50
+                        # Check for missed opportunity
+                        else:
+                            reward -= 50
+                            
             elif self.position == 'long':
                 # Buy Exit
                 if action == 1:
-                    pnl = (self.current_market_price - self.entry_price) * self.tick_value
-                    self.balance += pnl
-                    reward += pnl * 10
+                    trade_reward = (self.current_market_price - self.entry_price) * self.tick_value
                     self.position = None
-                    #reward -= transaction_cost  # Applying transaction cost
+                    self.entry_price = None
+                    self.drawdown = 0
+                    self.open_pnl = 0
 
             elif self.position == 'short':
                 # Short Exit
                 if action == 3:
-                    pnl = (self.entry_price - self.current_market_price) * self.tick_value
-                    self.balance += pnl
-                    reward += pnl * 10
+                    trade_reward = (self.entry_price - self.current_market_price) * self.tick_value
                     self.position = None
-                    #reward -= transaction_cost  # Applying transaction cost
+                    self.entry_price = None
+                    self.drawdown = 0
+                    self.open_pnl = 0                   
+                    
 
         # Risk management penalty
-        # Example risk penalty (can be customized)
         
-        risk_penalty = 0
-        
-        if self.position is not None and (self.current_market_price - self.entry_price) * self.tick_value < -500:
-            risk_penalty = 10
-        
-        reward -= risk_penalty
+        reward += trade_reward
+
+        # Update balance with reward
+        self.balance += reward       
 
         
         # Sequential event processing
