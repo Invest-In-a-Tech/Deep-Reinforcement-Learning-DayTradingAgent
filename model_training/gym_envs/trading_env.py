@@ -1,10 +1,28 @@
+##############################################
+################# IMPORTS ####################
 import gym
 from gym import spaces
 import numpy as np
 from datetime import datetime
 
 
+#######################################################
+###### TRADING ENVIRONMENT FOR FINANCIAL MARKETS ######
 class TradingEnv(gym.Env):
+    """
+    A custom trading environment class compatible with OpenAI's gym interface.
+    It simulates a trading scenario allowing actions like buying, selling, and holding.
+
+    Parameters:
+    - features (DataFrame): Historical market data features.
+    - initial_balance (float): The starting balance for the trading account.
+    - tick_value (float): The value of each market tick.
+    - stop_loss (float): The stop loss amount.
+    - profit_target (float): The profit target.
+    - start_time (str): The opening time of the trading session.
+    - end_time (str): The closing time of the trading session.
+    """
+    
     def __init__(
         self, 
         features, 
@@ -15,25 +33,22 @@ class TradingEnv(gym.Env):
         start_time="08:30:00", 
         end_time="14:30:00",
     ):
-        
         super(TradingEnv, self).__init__()
-        
-        # Data
+
+        # Process and set the market data features
         self.features = features.values
-        #print(f'Features: {self.features}')
         self.feature_columns = features.columns
         self.dates = features.index
         
-        # Define trading hours
+        # Setting up trading session timings
         self.start_time = datetime.strptime(start_time, "%H:%M:%S").time()
         self.end_time = datetime.strptime(end_time, "%H:%M:%S").time()
         
-        # Validate start and end times
+        # Validate the trading session timings
         if self.start_time >= self.end_time:
             raise ValueError("Start time must be earlier than end time.")
 
-
-        # Initialize parameters
+        # Initialize variables for account management
         self.initial_balance = initial_balance
         self.balance = initial_balance
         self.tick_value = tick_value
@@ -41,58 +56,90 @@ class TradingEnv(gym.Env):
         self.stop_loss = stop_loss
         self.profit_target = profit_target
 
-        # Initialize state variables
-        self.position = None  # 'long', 'short', or None
+        # Position management variables
+        self.position = None 
         self.entry_balance = None
         self.entry_price = None
         self.last_trade_reward = 0
-        self.stop_loss_flag = 0  # Initialized stop loss flag
+        self.stop_loss_flag = 0 
 
-        # Sort DataFrame by index (Date) and extract unique timestamps
+        # Organize market data
         self.features = features.sort_index()
-        #print(f'Features: {self.features}')
         self.unique_timestamps = self.features.index.unique()
 
-        # Define action and observation spaces
-        self.action_space = spaces.Discrete(5)  # Buy Entry, Buy Exit, Short Entry, Short Exit, No Action
+        # Define the action space (5 actions: buy entry/exit, short entry/exit, no action)
+        self.action_space = spaces.Discrete(5) 
 
-        # Adjust observation space to include market data and account information
+        # Define the observation space (market data + account information)
         market_data_shape = features.shape[1]
-        additional_info_shape = 6  # balance, position flags, stop loss flag, open PnL, drawdown
+        additional_info_shape = 6 # Balance, position flags, stop loss flag, open PnL, drawdown
         total_observation_shape = market_data_shape + additional_info_shape
         self.observation_space = spaces.Box(low=-float('inf'), high=float('inf'), shape=(total_observation_shape,), dtype=np.float32)
         
-
-        # Reset environment to start state
+        # Initialize the environment to its start state
         self.reset()
 
 
+    #####################################################
+    ####### RESET METHOD FOR TRADING ENVIRONMENT ########
     def reset(self):
+        """
+        Resets the trading environment to its initial state.
+        This method is typically called at the beginning of each new episode.
+
+        Returns:
+        - The initial observation of the environment.
+        """
+        
+        # Reset the index for the current timestamp to the start of the dataset
         self.current_timestamp_index = 0
         self.current_timestamp = self.unique_timestamps[self.current_timestamp_index]
+
+        # Reset the row counter for the current state in the dataset
         self.current_row = 0
-        self.balance = self.initial_balance  # Reset balance
+
+        # Reinitialize the account balance to the initial balance
+        self.balance = self.initial_balance
+
+        # Reset position-related variables to None, indicating no current position
         self.position = None
         self.entry_price = None
-        self.high_water_mark = self.initial_balance
+        self.high_water_mark = self.initial_balance  # Reset the high water mark to the initial balance
+
+        # Reset the step at which the current position was entered (if any)
         self.entry_step = None
-        self.stop_loss_flag = 0  # Reset stop loss flag
+
+        # Reset the stop loss flag, used to indicate if stop loss was triggered in the last step
+        self.stop_loss_flag = 0
+
+        # Generate the next observation after the reset
         return self._next_observation()
     
     
+    #######################################################
+    ############# NEXT OBSERVATION METHOD #################
     def _next_observation(self):
-        # Extract market data for the current timestamp
+        """
+        Generates the next observation of the market and the agent's state.
+
+        This method is called to update the state of the environment after each action.
+
+        Returns:
+        - The next observation, which includes both market data and account information.
+        """
+
+        # Extract the market data for the current timestamp from the features DataFrame
         filtered_df = self.features.loc[[self.current_timestamp]]
 
-        # Check if current_row is within the bounds of filtered_df
+        # Ensure that the current row is within the bounds of the filtered data
         if self.current_row < len(filtered_df):
             row = filtered_df.iloc[self.current_row]
             market_data = row.values
 
-            
+            # Update the current market price from the 'Price' column
             self.current_market_price = row['Price']
 
-            # Calculate Open PnL
+            # Calculate the open profit and loss (PnL) based on the current position
             if self.position == 'long':
                 self.open_pnl = (self.current_market_price - self.entry_price) * self.tick_value
             elif self.position == 'short':
@@ -100,37 +147,33 @@ class TradingEnv(gym.Env):
             else:
                 self.open_pnl = 0
 
-            # Calculate drawdown from open_pnl
-            if self.position is not None:
-                self.drawdown = min(self.open_pnl, 0)
-            else:
-                self.drawdown = 0
+            # Calculate the drawdown from the open PnL
+            self.drawdown = min(self.open_pnl, 0) if self.position is not None else 0
 
-            # Update stop loss flag
-            if self.balance <= (self.high_water_mark - self.stop_loss):
-                self.stop_loss_flag = 1
-            else:
-                self.stop_loss_flag = 0
+            # Update the stop loss flag based on account balance and high water mark
+            self.stop_loss_flag = 1 if self.balance <= (self.high_water_mark - self.stop_loss) else 0
 
-            # Combine market data with account information
+            # Combine market data with additional account information for the observation
             position_flags = np.array([int(self.position == 'long'), int(self.position == 'short')])
             additional_info = np.array([self.balance, *position_flags, self.stop_loss_flag, self.open_pnl, self.drawdown])
             observation = np.concatenate((market_data, additional_info))
             return observation
         else:
-            # Handle the case when current_row exceeds the length of filtered_df
-            # Move to the next timestamp or handle the end of dataset
+            # Handle the case when the current row exceeds the length of filtered data
             self.current_timestamp_index += 1
             if self.current_timestamp_index >= len(self.unique_timestamps):
-                # Handle the end of the dataset (e.g., by resetting the environment)
+                # Reset the environment if the end of the dataset is reached
                 return self.reset()
             else:
-                # Move to the next timestamp and reset current_row
+                # Move to the next timestamp and reset the current row
                 self.current_timestamp = self.unique_timestamps[self.current_timestamp_index]
                 self.current_row = 0
-                return self._next_observation()  
+                return self._next_observation()
 
 
+    ##############################################
+    ############# STEP METHOD ####################
+    
     def step(self, action):
         reward = 0
         done = False
@@ -165,13 +208,13 @@ class TradingEnv(gym.Env):
                     if action == 0:
                         self.position = 'long'
                         self.entry_price = self.current_market_price
-                        reward -= transaction_cost  # Applying transaction cost
+                        #reward -= transaction_cost  # Applying transaction cost
 
                     # Short Entry
                     elif action == 2:
                         self.position = 'short'
                         self.entry_price = self.current_market_price
-                        reward -= transaction_cost  # Applying transaction cost
+                        #reward -= transaction_cost  # Applying transaction cost
 
                     # Do Nothing
                     elif action == 4:
@@ -182,18 +225,18 @@ class TradingEnv(gym.Env):
                 if action == 1:
                     pnl = (self.current_market_price - self.entry_price) * self.tick_value
                     self.balance += pnl
-                    reward += pnl
+                    reward += pnl * 10
                     self.position = None
-                    reward -= transaction_cost  # Applying transaction cost
+                    #reward -= transaction_cost  # Applying transaction cost
 
             elif self.position == 'short':
                 # Short Exit
                 if action == 3:
                     pnl = (self.entry_price - self.current_market_price) * self.tick_value
                     self.balance += pnl
-                    reward += pnl
+                    reward += pnl * 10
                     self.position = None
-                    reward -= transaction_cost  # Applying transaction cost
+                    #reward -= transaction_cost  # Applying transaction cost
 
         # Risk management penalty
         # Example risk penalty (can be customized)
@@ -201,7 +244,7 @@ class TradingEnv(gym.Env):
         risk_penalty = 0
         
         if self.position is not None and (self.current_market_price - self.entry_price) * self.tick_value < -500:
-            risk_penalty = 100
+            risk_penalty = 10
         
         reward -= risk_penalty
 
@@ -225,10 +268,11 @@ class TradingEnv(gym.Env):
             self.current_market_price = self.features.loc[self.current_timestamp].iloc[self.current_row]['Price']
 
         observation = self._next_observation()
-
         return observation, reward, done, info
 
 
+    ##############################################
+    ############# RENDER METHOD ##################
     def render(self, mode='human', action=None, reward=None):
         if mode == 'human':
             # Human-readable printout of the current state in a single line
