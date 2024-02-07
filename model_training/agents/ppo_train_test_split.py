@@ -71,6 +71,7 @@ def run_training():
             total_rewards += reward
             env_test.render(action=action, reward=reward)
             
+            
 
         # Store evaluation results
         evaluation_results.append(total_rewards)       
