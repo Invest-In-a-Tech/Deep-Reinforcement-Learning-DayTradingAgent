@@ -98,10 +98,10 @@ class FeatureEngineering:
             Returns:
                 pd.Series: A series containing the calculated POC, HVN, and LVN price and volume levels for the group.
             """
-            sorted_volumes = group.sort_values('TotalVolume')
-            poc = sorted_volumes.iloc[-1]
-            hvn = sorted_volumes.iloc[-2] if len(sorted_volumes) > 1 else poc
-            lvn = sorted_volumes.iloc[0]
+            sorted_volumes = group.sort_values('TotalVolume') # Sort by TotalVolume
+            poc = sorted_volumes.iloc[-1] # POC is the last row
+            hvn = sorted_volumes.iloc[-2] if len(sorted_volumes) > 1 else poc # HVN is the second last row, if available
+            lvn = sorted_volumes.iloc[0] # LVN is the first row
 
             return pd.Series({
                 'POC_Price': poc['Price'],

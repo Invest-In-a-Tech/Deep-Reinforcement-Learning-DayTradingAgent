@@ -1,3 +1,6 @@
+################################################################
+# IMPORTS 
+# ==============================================================
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import MinMaxScaler
@@ -13,26 +16,45 @@ from model_training.gym_envs.trading_env import TradingEnv
 import os
 
 
+
+
+################################################################
+# run_training
+# ==============================================================
 def run_training():
+    """
+    Executes the training pipeline for a financial trading model using the ES dataset. This comprehensive 
+    process includes data preprocessing, feature engineering, time series cross-validation, and training 
+    a model using Proximal Policy Optimization (PPO) from the Stable Baselines3 library. 
+
+    The pipeline steps are as follows:
+    1. Preprocess the data using `DataFrameProcessor` to clean and prepare the dataset.
+    2. Apply feature engineering to enhance the dataset with relevant financial indicators.
+    3. Perform time series cross-validation using `TimeSeriesSplit` to partition the data for training and testing.
+    4. Scale features using `MinMaxScaler` for normalization.
+    5. Train a PPO model on the training set for each fold, saving model checkpoints and scalers.
+    6. Evaluate the model on the test set, collecting total rewards as evaluation metrics.
+    7. Save the trained model and scaler for each fold for future use or analysis.
+
+    The function logs training details, scales data for model input, and saves the trained models and scalers. 
+    Evaluation results are printed at the end, providing insights into the model's performance across different folds.
+    """
     processor = DataFrameProcessor(os.path.join('model_training', 'data', 'example_esDataset.csv'))
     df = processor.process_data()
-
     feature_engineer = FeatureEngineering(df)
     df_enhanced = feature_engineer.perform_feature_engineering()
-    
-    # Number of splits for Time Series Cross-Validation
-    n_splits = 2
-
-    # TimeSeriesSplit
-    tscv = TimeSeriesSplit(n_splits=n_splits)
-
-    # Store evaluation metrics for each fold
-    evaluation_results = []   
+    n_splits = 2 # Number of splits for Time Series Cross-Validation
+    tscv = TimeSeriesSplit(n_splits=n_splits) # TimeSeriesSplit
+    evaluation_results = []  # Store evaluation metrics for each fold 
     
 
+
+
+    ############################################################
+    # Loop through each fold of the TimeSeriesSplit
+    # ==========================================================
     for fold_num, (train_index, test_index) in enumerate(tscv.split(df_enhanced), start=1):
         print(f"Fold {fold_num}:")
-        
         
         # Define the log path for this fold
         log_path = os.path.join('model_training', 'training', 'logs', f'fold_{fold_num}')
