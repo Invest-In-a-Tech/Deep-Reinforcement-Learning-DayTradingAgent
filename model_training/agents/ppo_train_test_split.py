@@ -39,7 +39,7 @@ def run_training():
     The function logs training details, scales data for model input, and saves the trained models and scalers. 
     Evaluation results are printed at the end, providing insights into the model's performance across different folds.
     """
-    processor = DataFrameProcessor(os.path.join('model_training', 'data', 'example_esDataset.csv'))
+    processor = DataFrameProcessor(os.path.join('model_training', 'data', 'es_tuples_dataset.csv'))
     df = processor.process_data()
     feature_engineer = FeatureEngineering(df)
     df_enhanced = feature_engineer.perform_feature_engineering()
@@ -75,15 +75,15 @@ def run_training():
         print(f"After scaling, training data shape: {features_train_scaled.shape}, test data shape: {features_test_scaled.shape}")
 
         # Initialize and train your model
-        #env_train = TradingEnv(features_train_scaled, start_time="08:30:00", end_time="14:30:00")
-        env_train = TradingEnv(features_train, start_time="08:30:00", end_time="14:30:00")
+        env_train = TradingEnv(features_train_scaled, start_time="08:30:00", end_time="14:30:00")
+        #env_train = TradingEnv(features_train, start_time="08:30:00", end_time="14:30:00")
         model = PPO("MlpPolicy", env_train, verbose=1, tensorboard_log=log_path)
         model.learn(total_timesteps=500)
 
         
         # Evaluate your model on the test set
-        #env_test = TradingEnv(features_test_scaled, start_time="08:30:00", end_time="14:30:00")
-        env_test = TradingEnv(features_test, start_time="08:30:00", end_time="14:30:00")
+        env_test = TradingEnv(features_test_scaled, start_time="08:30:00", end_time="14:30:00")
+        #env_test = TradingEnv(features_test, start_time="08:30:00", end_time="14:30:00")
         obs = env_test.reset()
         total_rewards = 0
         done = False
@@ -91,7 +91,7 @@ def run_training():
             action, _states = model.predict(obs)
             obs, reward, done, info = env_test.step(action)
             total_rewards += reward
-            env_test.render(action=action, reward=reward)
+            #env_test.render(action=action, reward=reward)
             
             
 
